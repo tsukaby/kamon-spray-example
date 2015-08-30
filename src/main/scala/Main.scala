@@ -4,12 +4,16 @@ import UUIDService.Protocol.Generate
 import akka.actor.{Actor, ActorSystem, Props}
 import akka.pattern._
 import akka.util.Timeout
+import kamon.Kamon
+import kamon.spray.KamonTraceDirectives
 import spray.routing.SimpleRoutingApp
 
 import scala.concurrent.duration._
 import scala.language.postfixOps
 
-object Main extends App with SimpleRoutingApp {
+object Main extends App with SimpleRoutingApp with KamonTraceDirectives {
+  Kamon.start()
+
   implicit val system = ActorSystem("my-system")
   implicit val timeout = Timeout(5 seconds)
 
@@ -19,10 +23,12 @@ object Main extends App with SimpleRoutingApp {
 
   startServer(interface = "localhost", port = 8080) {
     path("uuid") {
-      get {
-        complete(
-          personService.ask(UUIDService.Protocol.Generate()).mapTo[UUID].map(_.toString)
-        )
+      traceName("get:uuid") {
+        get {
+          complete(
+            personService.ask(UUIDService.Protocol.Generate()).mapTo[UUID].map(_.toString)
+          )
+        }
       }
     }
   }
