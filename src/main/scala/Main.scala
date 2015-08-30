@@ -6,6 +6,7 @@ import akka.pattern._
 import akka.util.Timeout
 import kamon.Kamon
 import kamon.spray.KamonTraceDirectives
+import kamon.trace.Tracer
 import spray.routing.SimpleRoutingApp
 
 import scala.concurrent.duration._
@@ -35,8 +36,24 @@ object Main extends App with SimpleRoutingApp with KamonTraceDirectives {
 }
 
 class UUIDService extends Actor {
+  val counter = Kamon.metrics.counter("uuid-count")
+  val minMaxCounter = Kamon.metrics.minMaxCounter("uuid-min-max")
+  val histogram = Kamon.metrics.histogram("uuid-histogram")
+  val gauge = Kamon.metrics.gauge("uuid-gauge")(0L)
+
   override def receive: Receive = {
-    case Generate() => sender() ! UUID.randomUUID()
+    case Generate() =>
+      val currentMillis = System.currentTimeMillis()
+
+      counter.increment()
+      if(currentMillis % 2 == 0) minMaxCounter.increment() else minMaxCounter.decrement()
+      histogram.record(currentMillis % 1000)
+      gauge.record(currentMillis % 1000)
+
+      val uuid = Tracer.withNewContext("uuid-generate", autoFinish = true) {
+        UUID.randomUUID()
+      }
+      sender() ! uuid
   }
 }
 
